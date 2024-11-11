@@ -7,8 +7,23 @@
 #include <sstream>
 #include <iomanip>
 #include <ctime>
+#include <unordered_set>
+#include <fstream>
+#include <regex>
+#include <algorithm>
+#include <mutex>
+#include "DomainTrie.hpp"
 
-HANDLE ghMutex;
+std::mutex log_mutex;
+/*
+    mutex thường đc dùng để quản lý tài nguyên trong lập trình đa luồng vì tính chất của nó:
+    - tại một thời điểm, chỉ có một thread được khóa, khi dùng xong có thể mở khóa để luồng khác khóa
+
+    như vậy có thể coi mutex là giấy xác nhận đang sử dụng tài nguyên.
+
+    đọc code hàm log_request để hiểu hơn, tại một thời điểm, thread này in hết đống log đó thì mới tới lượt thread khác in.
+    nếu chỗ đó không xài mutex hay gì đó tương tự (osyncstream...) thì nó bị log lộn xộn.
+*/
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -20,6 +35,7 @@ private:
     bool running;
     static const int BUFFER_SIZE = 8192;
     static const int MAX_CONNECTIONS = 100;
+    DomainTrie blocked_sites_trie;
 
     struct HttpRequest
     {
@@ -30,6 +46,48 @@ private:
         std::string headers;
         std::string full_url;
     };
+    void load_blocked_sites(const std::string &filename)
+    {
+        std::ifstream file(filename);
+        std::string line;
+
+        while (std::getline(file, line))
+        {
+            // Remove whitespace and convert to lowercase
+            line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
+            std::transform(line.begin(), line.end(), line.begin(), ::tolower);
+
+            if (!line.empty() && line[0] != '#')
+            { // Skip empty lines and comments
+                blocked_sites_trie.insert(line);
+            }
+        }
+        std::cout << "Loaded blocked sites into Trie" << std::endl;
+    }
+
+    bool is_site_blocked(const std::string &host)
+    {
+        std::string lowercase_host = host;
+        std::transform(lowercase_host.begin(), lowercase_host.end(), lowercase_host.begin(), ::tolower);
+        return blocked_sites_trie.search(lowercase_host);
+    }
+
+    void send_blocked_response(SOCKET client_socket, const std::string &host)
+    {
+        std::string blocked_page =
+            "HTTP/1.1 403 Forbidden\r\n"
+            "Content-Type: text/html\r\n"
+            "\r\n"
+            "<!DOCTYPE html>"
+            "<html><head><title>Access Denied</title></head>"
+            "<body style='text-align: center; font-family: Arial, sans-serif;'>"
+            "<h1>Access Denied</h1>"
+            "<p>Access to " +
+            host + " has been blocked by the proxy administrator.</p>"
+                   "</body></html>";
+
+        send(client_socket, blocked_page.c_str(), blocked_page.length(), 0);
+    }
 
     std::string get_timestamp()
     {
@@ -42,31 +100,16 @@ private:
 
     void log_request(const HttpRequest &req, const std::string &client_ip)
     {
-        DWORD dwWaitResult, dwCount = 0;
-        dwWaitResult = WaitForSingleObject(
-            ghMutex,   // handle to mutex
-            INFINITE); // no time-out interval
+        std::lock_guard<std::mutex> lock(log_mutex);
 
-        switch (dwWaitResult)
-        {
-        case WAIT_OBJECT_0:
-            std::cout << "\n"
-                        << get_timestamp() << " Request Details:" << std::endl;
-            std::cout << "|- Method: " << req.method << std::endl;
-            std::cout << "|- URL: " << req.full_url << std::endl;
-            std::cout << "|- Host: " << req.host << std::endl;
-            std::cout << "|- Port: " << req.port << std::endl;
-            std::cout << "|- Path: " << req.path << std::endl;
-            std::cout << "\\- Client IP: " << client_ip << std::endl;
-            dwCount++;
-            ReleaseMutex(ghMutex);
-            break;
-
-        // The thread got ownership of an abandoned mutex
-        // The database is in an indeterminate state
-        case WAIT_ABANDONED:
-            return;
-        }
+        std::cout << "\n"
+                  << get_timestamp() << " Request Details:" << std::endl;
+        std::cout << "|- Method: " << req.method << std::endl;
+        std::cout << "|- URL: " << req.full_url << std::endl;
+        std::cout << "|- Host: " << req.host << std::endl;
+        std::cout << "|- Port: " << req.port << std::endl;
+        std::cout << "|- Path: " << req.path << std::endl;
+        std::cout << "\\- Client IP: " << client_ip << std::endl;
     }
 
     HttpRequest parse_request(const std::string &request)
@@ -151,6 +194,7 @@ private:
         char buffer[BUFFER_SIZE];
         ZeroMemory(buffer, BUFFER_SIZE);
 
+        // from client to proxy (1)
         int bytes_read = recv(client_socket, buffer, BUFFER_SIZE - 1, 0);
         if (bytes_read <= 0)
         {
@@ -160,7 +204,15 @@ private:
 
         std::string request(buffer);
         HttpRequest req = parse_request(request);
+
         log_request(req, client_ip);
+        if (is_site_blocked(req.host))
+        {
+            std::cout << get_timestamp() << " Blocked access to: " << req.host << std::endl;
+            send_blocked_response(client_socket, req.host);
+            closesocket(client_socket);
+            return;
+        }
 
         if (req.method == "CONNECT")
         {
@@ -198,14 +250,24 @@ private:
             return;
         }
 
+        // send from proxy to real server (2)
         send(remote_socket, original_request.c_str(), original_request.length(), 0);
 
         char buffer[BUFFER_SIZE];
         int bytes_read;
+
+        // receive from real server to proxy (3)
+        std::string response = "";
         while ((bytes_read = recv(remote_socket, buffer, BUFFER_SIZE, 0)) > 0)
         {
+            response += std::string(buffer);
+            // send from proxy to client (4)
             send(client_socket, buffer, bytes_read, 0);
         }
+        std::cout << "-----------------------------------------" << std::endl;
+        std::cout << "From thread " << std::this_thread::get_id() << std::endl;
+        std::cout << response << std::endl;
+        std::cout << "-----------------------------------------" << std::endl;
 
         closesocket(remote_socket);
         closesocket(client_socket);
@@ -218,6 +280,7 @@ private:
         hints.ai_family = AF_INET;
         hints.ai_socktype = SOCK_STREAM;
 
+        // resolve IP?
         int status = getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints, &res);
         if (status != 0)
         {
@@ -296,13 +359,15 @@ private:
     }
 
 public:
-    HttpProxy(int port) : running(true)
+    HttpProxy(int port, const std::string &blocklist_file) : running(true)
     {
         WSADATA wsaData;
         if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
         {
             throw std::runtime_error("Failed to initialize Winsock");
         }
+
+        load_blocked_sites(blocklist_file);
 
         server_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (server_socket == INVALID_SOCKET)
@@ -380,23 +445,17 @@ public:
 
 int main(int argc, char *argv[])
 {
-    if (argc != 2)
+    if (argc != 3)
     {
-        std::cerr << "Usage: " << argv[0] << " <port>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <port>" << " <blocklist_file>" << std::endl;
         return 1;
     }
 
-    ghMutex = CreateMutex(
-        NULL,  // default security attributes
-        FALSE, // initially not owned
-        NULL); // unnamed mutex
-
-    if (ghMutex == NULL)
-    {
-        std::cout << "CreateMutex error: " << GetLastError() << "\n";
-        return 1;
-    }
-
+    /*
+        đây code windows nên dùng hàm lạ quắc này,
+        nếu code linux thì dùng hàm signal(<signal>, <handler>),
+        khi nhận tín hiệu từ người dùng, hay từ `kill <pid>`, hàm handler sẽ chạy
+    */
     SetConsoleCtrlHandler([](DWORD ctrl_type) -> BOOL
                           {
         if (ctrl_type == CTRL_C_EVENT) {
@@ -408,7 +467,12 @@ int main(int argc, char *argv[])
     try
     {
         int port = std::stoi(argv[1]);
-        HttpProxy proxy(port);
+        if (port < 0)
+        {
+            throw std::runtime_error("Negative port number!");
+            return 1;
+        }
+        HttpProxy proxy(port, argv[2]);
         proxy.start();
     }
     catch (const std::exception &e)

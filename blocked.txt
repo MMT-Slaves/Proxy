@@ -1,0 +1,6 @@
+google.com
+youtube.com
+daynhauhoc.com
+*.hcmus.edu.vn
+geowebcache.org
+*.nii.ac.jp
