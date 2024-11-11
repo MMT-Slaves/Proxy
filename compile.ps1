@@ -1,0 +1,1 @@
+g++ -o windows_proxy.exe main.cpp -lws2_32
