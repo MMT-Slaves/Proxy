@@ -1,1 +1,3 @@
-nhobeo
+*.hcmus.edu.vn
+hcmus.edu.vn
+daynhauhoc.com
