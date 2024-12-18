@@ -30,15 +30,13 @@ private:
     bool running;
     static const int BUFFER_SIZE = 8192;
     static const int MAX_CONNECTIONS = 100;
-    DomainTrie blocked_sites_trie;
-
-    void load_blocked_sites(const std::string& filename);
+    DomainTrie* blocked_sites_trie;
 
     bool is_site_blocked(const std::string& host);
 
     void send_blocked_response(SOCKET client_socket, const std::string& host);
 
-    void log_request(const HttpRequest& req, const std::string& client_ip, const bool blocked);
+    //void log_request(const HttpRequest& req, const std::string& client_ip, const bool blocked);
 
     HttpRequest parse_request(const std::string& request);
 
@@ -55,6 +53,8 @@ private:
     void send_error(SOCKET client_socket, const std::string& message);
 
 public:
+    void load_blocked_sites(const std::string& filename);
+
     HttpProxy(int port, const std::string& blocklist_file, LogQueue* log_queue) ;
 
     void start();

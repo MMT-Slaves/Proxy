@@ -43,15 +43,18 @@ std::string var;
 bool saved_blocked = 0;
 time_t saved_time = 0;
 
-int playing_port = 8080;
+int playing_port = 1008;
+uint64_t selected_log_id = 0; // No log selected initially
+uint64_t hovered_log_id = 0; // No log selected initially
+
 
 
 class Application {
-private:
+
+public:
     LogQueue* log_queue_global;
     HttpProxy* proxy;
 
-public:
     Application() : log_queue_global(nullptr), proxy(nullptr) {}
 
     Application(int port, const std::string& blocklist_file) {
@@ -73,9 +76,15 @@ public:
     }
 
     void connect() {
+        // Start the log update thread
         std::thread log_thread(&Application::update_log, this);
-        proxy->start();
-        log_thread.join();
+        log_thread.detach();
+
+        // Start the proxy in a separate thread
+        std::thread proxy_thread([this]() {
+            proxy->start();
+        });
+        proxy_thread.detach();
     }
 
     ~Application() {
@@ -83,10 +92,11 @@ public:
         delete proxy;
     }
 
-
-
 };
+std::vector<char> selected_request_buffer;
+std::vector<char> selected_response_buffer;
 
+Application* app = nullptr;
 
 //void load_file_content(const std::string& filename) {
 //    std::ifstream infile(filename);
@@ -101,6 +111,133 @@ public:
 //    }
 //}
 
+//void ShowStudentDetailWindow()
+//{
+//    if (selected_student_index >= 0 && selected_student_index < student_list.size())
+//    {
+//        const Student& student = student_list[selected_student_index];
+//
+//        // Show a separate window with student details
+//        ImGui::Begin("Student Detail", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+//        ImGui::Text("Name: %s", student.name.c_str());
+//        ImGui::Text("ID: %d", student.id);
+//        ImGui::Text("Class: %s", student.class_name.c_str());
+//        ImGui::TextWrapped("Secret Detail: %s", student.secret_detail.c_str());
+//
+//        if (ImGui::Button("Close")) {
+//            selected_student_index = -1; // Close the window by deselecting the student
+//        }
+//        ImGui::End();
+//    }
+//}
+
+//void showResponseDetailWindow() {
+//    if ()
+//}
+
+void RenderLogTable() {
+    // Retrieve logs
+    auto logs = app->log_queue_global->get_logs();
+
+    // ImGui table
+    ImGuiIO MyIO = ImGui::GetIO();
+    ImGui::SetNextWindowSize(ImVec2(MyIO.DisplaySize.x - 20, MyIO.DisplaySize.y / 3));
+    ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+        ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable |
+        ImGuiTableFlags_ScrollX;
+
+    if (ImGui::BeginTable("Request Logs", 7, flags))
+    {
+        // Table headers
+        ImGui::TableSetupColumn("ID");
+        ImGui::TableSetupColumn("Timestamp");
+        ImGui::TableSetupColumn("Method");
+        ImGui::TableSetupColumn("Host");
+        ImGui::TableSetupColumn("Port");
+        ImGui::TableSetupColumn("Path");
+        ImGui::TableSetupColumn("Client IP");
+        ImGui::TableHeadersRow();
+
+        // Render rows
+        for (const auto& log : logs) {
+            // Start a new row
+            ImGui::TableNextRow();
+
+            // Set initial column index
+            ImGui::TableSetColumnIndex(0);
+
+            // Create a unique identifier for the selectable
+            std::string selectable_id = std::to_string(log.id);
+
+            // Determine if this row is selected
+
+            // Create a selectable that spans the entire row
+            bool is_selected = (log.id == selected_log_id);
+            ImGui::PushID(log.id);
+            if (ImGui::Selectable(selectable_id.c_str(), is_selected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowItemOverlap, ImVec2(0, 0))) {
+                // Row was clicked
+                selected_log_id = log.id;
+
+            }
+            ImGui::PopID();
+
+            // Check if the row is hovered
+            bool is_hovered = ImGui::IsItemHovered();
+
+            // Set background color based on hover or selection
+            if (is_selected) {
+                ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, ImGui::GetColorU32(ImVec4(1.0f, 0.5f, 0.0f, 0.65f))); // Intense highlight
+
+                // Update selected request buffer
+                selected_request_buffer.assign(log.fullRequest.begin(), log.fullRequest.end());
+                selected_request_buffer.push_back('\0'); // Null-terminate
+
+                // Update selected response buffer
+                selected_response_buffer.assign(log.fullResponse.begin(), log.fullResponse.end());
+                selected_response_buffer.push_back('\0'); // Null-terminate
+            }
+            else if (is_hovered) {
+                ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, ImGui::GetColorU32(ImVec4(0.8f, 0.8f, 0.8f, 0.65f))); // Light highlight
+                
+            }
+
+            // Render cells
+            //ImGui::TableSetColumnIndex(0);
+            //ImGui::Text("%llu", log.id);
+
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%s", log.timestamp.c_str());
+
+            ImGui::TableSetColumnIndex(2);
+            ImGui::Text("%s", log.method.c_str());
+
+            ImGui::TableSetColumnIndex(3);
+            ImGui::Text("%s", log.host.c_str());
+
+            ImGui::TableSetColumnIndex(4);
+            ImGui::Text("%d", log.port);
+
+            ImGui::TableSetColumnIndex(5);
+            ImGui::Text("%s", log.path.c_str());
+
+            ImGui::TableSetColumnIndex(6);
+            ImGui::Text("%s", log.client_ip.c_str());
+
+            if (ImGui::IsItemHovered()) {
+                ImGui::BeginTooltip();
+                ImGui::Text("Full Request: %s", log.fullRequest.c_str());
+                ImGui::Text("Full Response: %s", log.fullResponse.c_str());
+                ImGui::EndTooltip();
+            }
+
+        }
+        ImGui::EndTable();
+    }
+}
+
+
+
+
 void save_file_content(const std::string& filename, const std::string& content) {
     std::ofstream outfile(filename);
     if (!outfile) {
@@ -113,7 +250,6 @@ void save_file_content(const std::string& filename, const std::string& content) 
     }
 }
 
-Application* app = nullptr;
 
 // Main code
 int main(int, char**)
@@ -174,6 +310,11 @@ int main(int, char**)
     // Main loop
     bool done = false;
     bool started = false;
+
+    // Initialize buffers with a null terminator
+    selected_request_buffer.push_back('\0');
+    selected_response_buffer.push_back('\0');
+
     while (!done)
     {
         // Poll and handle messages (inputs, window resize, etc.)
@@ -231,13 +372,14 @@ int main(int, char**)
                 if (ImGui::Button("Start")) {
                     started = true;
                     app = new Application(playing_port, "blocked_list.txt");
+                    app->connect();
                 }
             }
             else {
                 if (ImGui::CollapsingHeader("Blocked List")) {
                     // Multiline text for blocked list domain
                     ImGui::Text("Blocked sites list: ");
-
+                    ImGui::SetNextWindowSize(ImVec2(MyIO.DisplaySize.x - 10, MyIO.DisplaySize.y / 3));
                     ImGui::InputTextMultiline("##Blocked sites list", blocked_list, IM_ARRAYSIZE(blocked_list), ImVec2(0, 0));
 
 
@@ -245,7 +387,7 @@ int main(int, char**)
                     if (ImGui::Button("Save")) {
                         var = std::string(blocked_list);              // Save buffer to var
                         save_file_content("blocked_list.txt", var);    // Save var to blocked_list.txt
-
+                        app->proxy->load_blocked_sites("blocked_list.txt");
                         saved_blocked = 1;
                         saved_time = time(0);
                     }
@@ -253,7 +395,6 @@ int main(int, char**)
                         if (saved_time - time(0) >= -1) {
                             ImGui::SameLine();
                             ImGui::Text("Saved");
-                            
                         }
                         else {
                             saved_blocked = 0;
@@ -261,6 +402,31 @@ int main(int, char**)
                     }
 
                 }
+                RenderLogTable();
+
+                // Display Request and Response Text Boxes
+                ImGui::Separator(); // Optional separator
+                ImGui::Columns(2, "RequestResponseColumns"); // Create two columns
+
+                // Request Text Box
+                ImGui::Text("Request");
+                ImGui::InputTextMultiline("##Request",
+                    selected_request_buffer.data(),
+                    selected_request_buffer.size(),
+                    ImVec2(-1, MyIO.DisplaySize.y / 6),
+                    ImGuiInputTextFlags_ReadOnly);
+
+                ImGui::NextColumn();
+
+                // Response Text Box
+                ImGui::Text("Response");
+                ImGui::InputTextMultiline("##Response",
+                    selected_response_buffer.data(),
+                    selected_response_buffer.size(),
+                    ImVec2(-1, MyIO.DisplaySize.y / 6),
+                    ImGuiInputTextFlags_ReadOnly);
+
+                ImGui::Columns(1); // End columns
             }
             
 

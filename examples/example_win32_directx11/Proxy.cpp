@@ -25,6 +25,7 @@ void HttpProxy::load_blocked_sites(const std::string& filename) {
     // ADD EDIT TO GUI
     std::ifstream file(filename);
     std::string line;
+    blocked_sites_trie = new DomainTrie();
 
     while (std::getline(file, line)) {
         // Remove whitespace and convert to lowercase
@@ -34,7 +35,7 @@ void HttpProxy::load_blocked_sites(const std::string& filename) {
 
         if (!line.empty() &&
             line[0] != '#') {  // Skip empty lines and comments
-            blocked_sites_trie.insert(line);
+            blocked_sites_trie->insert(line);
         }
     }
     std::cout << "Loaded blocked sites into Trie" << std::endl;
@@ -44,7 +45,7 @@ bool HttpProxy::is_site_blocked(const std::string& host) {
     std::string lowercase_host = host;
     std::transform(lowercase_host.begin(), lowercase_host.end(),
         lowercase_host.begin(), ::tolower);
-    return blocked_sites_trie.search(lowercase_host);
+    return blocked_sites_trie->search(lowercase_host);
 }
 
 void HttpProxy::send_blocked_response(SOCKET client_socket, const std::string& host) {
@@ -64,10 +65,19 @@ void HttpProxy::send_blocked_response(SOCKET client_socket, const std::string& h
     send(client_socket, blocked_page.c_str(), blocked_page.length(), 0);
 }
 
-void HttpProxy::log_request(const HttpRequest& req, const std::string& client_ip,
-    const bool blocked) {
-    this->log_queue->add_log(req, client_ip, blocked);
-}
+//void HttpProxy::log_request(const HttpRequest& req, const std::string& client_ip,
+//    const bool blocked) {
+//    this->log_queue->add_log(req, client_ip, blocked);
+//
+//    std::cout << "\n"
+//        << get_timestamp() << " Request Details:" << std::endl;
+//    std::cout << "|- Method: " << req.method << std::endl;
+//    std::cout << "|- URL: " << req.full_url << std::endl;
+//    std::cout << "|- Host: " << req.host << std::endl;
+//    std::cout << "|- Port: " << req.port << std::endl;
+//    std::cout << "|- Path: " << req.path << std::endl;
+//    std::cout << "\\- Client IP: " << client_ip << std::endl;
+//}
 
 HttpRequest HttpProxy::parse_request(const std::string& request) {
     HttpRequest req;
@@ -152,14 +162,14 @@ void HttpProxy::handle_client(SOCKET client_socket, const std::string& client_ip
     bool blocked = is_site_blocked(req.host);
 
     if (blocked) {
-        log_request(req, client_ip, 1);
+        this->log_queue->add_log(req, client_ip, true, request);
         if (req.method != "CONNECT")
             send_blocked_response(client_socket, req.host);
         closesocket(client_socket);
         return;
     }
     if (req.method == "CONNECT") {
-        log_request(req, client_ip, 0);
+        this->log_queue->add_log(req, client_ip, false, request);
         handle_https_tunnel(client_socket, req);
     }
     else {
@@ -324,12 +334,14 @@ HttpProxy::HttpProxy(int port, const std::string& blocklist_file, LogQueue* log_
         closesocket(server_socket);
         WSACleanup();
         throw std::runtime_error("Failed to bind server socket");
+        std::cerr << "Failed to bind server socket" << std::endl;
     }
 
     if (listen(server_socket, MAX_CONNECTIONS) == SOCKET_ERROR) {
         closesocket(server_socket);
         WSACleanup();
         throw std::runtime_error("Failed to listen on server socket");
+        std::cerr << "Failed to listen on server socket" << std::endl;
     }
 }
 
