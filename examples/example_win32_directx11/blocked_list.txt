@@ -1,3 +1,2 @@
-*.hcmus.edu.vn
-hcmus.edu.vn
 daynhauhoc.com
+*.fit.hcmus.edu.vn

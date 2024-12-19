@@ -27,6 +27,10 @@ public:
     // Search for an exact or wildcard match for a given host
     bool search(const std::string& host) const;
 
+    void delTreeHelper(std::shared_ptr<TrieNode>& node);
+
+    void delTree();
+
 private:
     std::shared_ptr<TrieNode> root;
 

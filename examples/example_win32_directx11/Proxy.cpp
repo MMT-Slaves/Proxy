@@ -25,6 +25,7 @@ void HttpProxy::load_blocked_sites(const std::string& filename) {
     // ADD EDIT TO GUI
     std::ifstream file(filename);
     std::string line;
+    //blocked_sites_trie->delTree();
     blocked_sites_trie = new DomainTrie();
 
     while (std::getline(file, line)) {
@@ -210,6 +211,7 @@ void HttpProxy::handle_http_request(SOCKET client_socket, const HttpRequest& req
     // receive from real server to proxy (3)
     std::string response = "";
     while ((bytes_read = recv(remote_socket, buffer, BUFFER_SIZE, 0)) > 0) {
+        buffer[bytes_read] = '\0';
         response += std::string(buffer);
         // send from proxy to client (4)
         send(client_socket, buffer, bytes_read, 0);
