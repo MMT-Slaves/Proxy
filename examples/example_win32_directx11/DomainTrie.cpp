@@ -73,3 +73,18 @@ std::vector<std::string> DomainTrie::split_domain(const std::string& domain) {
     return segments;
 }
 
+void DomainTrie::delTreeHelper(std::shared_ptr<TrieNode>& node) {
+    if (!node) return;
+
+    // Recursively delete all child nodes
+    for (auto& childPair : node->children) {
+        delTreeHelper(childPair.second);
+        childPair.second.reset(); // Reset the shared_ptr to release the node
+    }
+    node->children.clear(); // Clear the children map
+}
+
+void DomainTrie::delTree() {
+    delTreeHelper(root);
+    root.reset(); // Reset the root pointer after deleting all nodes
+}

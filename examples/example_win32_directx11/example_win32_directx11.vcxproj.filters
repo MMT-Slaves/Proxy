@@ -27,6 +27,8 @@
     <ClInclude Include="LogQueue.h" />
     <ClInclude Include="Proxy.h" />
     <ClInclude Include="DomainTrie.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="CheckUTF.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\imgui.cpp">
@@ -56,6 +58,7 @@
     <ClCompile Include="LogQueue.cpp" />
     <ClCompile Include="Proxy.cpp" />
     <ClCompile Include="DomainTrie.cpp" />
+    <ClCompile Include="CheckUTF.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\README.txt" />
@@ -65,5 +68,8 @@
     <None Include="..\..\misc\debuggers\imgui.natstepfilter">
       <Filter>imgui</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="example_win32_directx11.rc" />
   </ItemGroup>
 </Project>
