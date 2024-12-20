@@ -1,0 +1,12 @@
+E:\Proxy-main - Copy\proxy_project\imgui\imgui.cpp;E:\Proxy-main - Copy\proxy_project\Proxy\x64\Debug\imgui.obj
+E:\Proxy-main - Copy\proxy_project\imgui\imgui_demo.cpp;E:\Proxy-main - Copy\proxy_project\Proxy\x64\Debug\imgui_demo.obj
+E:\Proxy-main - Copy\proxy_project\imgui\imgui_draw.cpp;E:\Proxy-main - Copy\proxy_project\Proxy\x64\Debug\imgui_draw.obj
+E:\Proxy-main - Copy\proxy_project\imgui\imgui_impl_dx11.cpp;E:\Proxy-main - Copy\proxy_project\Proxy\x64\Debug\imgui_impl_dx11.obj
+E:\Proxy-main - Copy\proxy_project\imgui\imgui_impl_win32.cpp;E:\Proxy-main - Copy\proxy_project\Proxy\x64\Debug\imgui_impl_win32.obj
+E:\Proxy-main - Copy\proxy_project\imgui\imgui_tables.cpp;E:\Proxy-main - Copy\proxy_project\Proxy\x64\Debug\imgui_tables.obj
+E:\Proxy-main - Copy\proxy_project\imgui\imgui_widgets.cpp;E:\Proxy-main - Copy\proxy_project\Proxy\x64\Debug\imgui_widgets.obj
+E:\Proxy-main - Copy\proxy_project\main.cpp;E:\Proxy-main - Copy\proxy_project\Proxy\x64\Debug\main.obj
+E:\Proxy-main - Copy\proxy_project\sources\CheckUTF.cpp;E:\Proxy-main - Copy\proxy_project\Proxy\x64\Debug\CheckUTF.obj
+E:\Proxy-main - Copy\proxy_project\sources\DomainTrie.cpp;E:\Proxy-main - Copy\proxy_project\Proxy\x64\Debug\DomainTrie.obj
+E:\Proxy-main - Copy\proxy_project\sources\LogQueue.cpp;E:\Proxy-main - Copy\proxy_project\Proxy\x64\Debug\LogQueue.obj
+E:\Proxy-main - Copy\proxy_project\sources\Proxy.cpp;E:\Proxy-main - Copy\proxy_project\Proxy\x64\Debug\Proxy.obj

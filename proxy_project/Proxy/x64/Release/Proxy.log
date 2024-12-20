@@ -1,0 +1,2 @@
+﻿LINK : warning LNK4075: ignoring '/INCREMENTAL' due to '/OPT:ICF' specification
+  Proxy.vcxproj -> E:\Proxy-main - Copy\proxy_project\x64\Release\Proxy.exe
